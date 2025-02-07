@@ -23,19 +23,31 @@ provider "kubernetes" {
   config_path = var.k8s_kube_config_path
 }
 
+variable "akeyless_token" {
+  type        = string
+  description = "Akeyless token"
+  sensitive   = true
+}
+
+variable "gateway_address" {
+  type        = string
+  description = "Akeyless Gateway API (https://gateway-address:8000/api/v2) Address"
+}
+
 variable "k8s_host_endpoint" {
   type        = string
   description = "The host endpoint for the kubernetes config"
 }
 
-variable "k8s_kube_config_path" {
-  type        = string
-  description = "The path to the kubernetes config"
-}
-
 variable "k8s_cluster_name" {
   type        = string
   description = "The name of the kuberentes cluster"
+}
+
+variable "k8s_kube_config_path" {
+  type        = string
+  description = "The path to the kubernetes config"
+  default     = "~/.kube/config"
 }
 
 variable "k8s_auth_account_name" {
@@ -44,21 +56,10 @@ variable "k8s_auth_account_name" {
   default     = "gateway-token-reviewer"
 }
 
-variable "akeyless_token" {
-  type        = string
-  description = "Akeyless token"
-  sensitive   = true
-}
-
 variable "akeyless_k8s_auth_namespace" {
   type        = string
   description = "Akeyless k8s auth namespace"
   default     = "akeyless-auth"
-}
-
-variable "gateway_address" {
-  type        = string
-  description = "Akeyless Gateway API (https://gateway-address:8000/api/v2) Address"
 }
 
 resource "kubernetes_namespace" "akeyless_namespace" {

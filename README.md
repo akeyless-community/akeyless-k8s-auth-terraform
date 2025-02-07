@@ -33,13 +33,13 @@ The following variables can be configured either through environment variables (
 
 | Variable Name | Description | Default Value | Required |
 |--------------|-------------|---------------|----------|
-| k8s_host_endpoint | The host endpoint for the kubernetes config | - | Yes |
-| k8s_kube_config_path | The path to the kubernetes config | - | Yes |
-| k8s_cluster_name | The name of the kubernetes cluster | - | Yes |
 | akeyless_token | Akeyless token (sensitive) | - | Yes |
+| gateway_address | Akeyless Gateway API Address (https://gateway-address:8000/api/v2) | - | Yes |
+| k8s_host_endpoint | The host endpoint for the kubernetes config | - | Yes |
+| k8s_cluster_name | The name of the kubernetes cluster | - | Yes |
+| k8s_kube_config_path | The path to the kubernetes config | ~/.kube/config | No |
 | k8s_auth_account_name | The name of the kubernetes auth service account and role binding | "gateway-token-reviewer" | No |
 | akeyless_k8s_auth_namespace | Akeyless k8s auth namespace | "akeyless-auth" | No |
-| gateway_address | Akeyless Gateway API Address (https://gateway-address:8000/api/v2) | - | Yes |
 
 ## Initialize the Terraform Configuration
 

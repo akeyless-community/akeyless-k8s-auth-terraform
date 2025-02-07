@@ -13,13 +13,14 @@ terraform {
 provider "akeyless" {
   api_gateway_address = var.gateway_address
 
+  # Use another method of authentication if desired https://registry.terraform.io/providers/akeyless-community/akeyless/latest/docs
   token_login {
     token = var.akeyless_token
   }
 }
 
 provider "kubernetes" {
-  config_path = "~/.kube/config"
+  config_path = var.k8s_kube_config_path
 }
 
 variable "k8s_host_endpoint" {
@@ -27,9 +28,20 @@ variable "k8s_host_endpoint" {
   description = "The host endpoint for the kubernetes config"
 }
 
+variable "k8s_kube_config_path" {
+  type        = string
+  description = "The path to the kubernetes config"
+}
+
 variable "k8s_cluster_name" {
   type        = string
   description = "The name of the kuberentes cluster"
+}
+
+variable "k8s_auth_account_name" {
+  type        = string
+  description = "The name of the kubernetes auth service account and role binding"
+  default     = "gateway-token-reviewer"
 }
 
 variable "akeyless_token" {
@@ -57,7 +69,7 @@ resource "kubernetes_namespace" "akeyless_namespace" {
 
 resource "kubernetes_service_account" "gateway_service_account" {
   metadata {
-    name      = "gateway-token-reviewer"
+    name      = var.k8s_auth_account_name
     namespace = kubernetes_namespace.akeyless_namespace.metadata[0].name
   }
   depends_on = [kubernetes_namespace.akeyless_namespace]
@@ -69,7 +81,7 @@ resource "kubernetes_secret" "gateway_service_account_token" {
       "kubernetes.io/service-account.name" = kubernetes_service_account.gateway_service_account.metadata.0.name
     }
     namespace     = kubernetes_namespace.akeyless_namespace.metadata[0].name
-    generate_name = "gateway-token-reviewer-"
+    generate_name = format("%s-", var.k8s_auth_account_name)
   }
 
   type                           = "kubernetes.io/service-account-token"
@@ -83,7 +95,7 @@ resource "kubernetes_secret" "gateway_service_account_token" {
 
 resource "kubernetes_cluster_role_binding" "token_reviewer_binding" {
   metadata {
-    name = "gateway-token-reviewer-binding"
+    name = format("%s-binding", var.k8s_auth_account_name)
   }
   role_ref {
     api_group = "rbac.authorization.k8s.io"

@@ -1,11 +1,12 @@
 terraform {
   required_providers {
     kubernetes = {
-      source = "hashicorp/kubernetes"
+      source  = "hashicorp/kubernetes"
+      version = ">= 3.1.0"
     }
     akeyless = {
-      version = ">= 1.0.0"
       source  = "akeyless-community/akeyless"
+      version = ">= 2.0.1"
     }
   }
 }
@@ -13,7 +14,6 @@ terraform {
 provider "akeyless" {
   api_gateway_address = var.gateway_address
 
-  # Use another method of authentication if desired https://registry.terraform.io/providers/akeyless-community/akeyless/latest/docs
   token_login {
     token = var.akeyless_token
   }
@@ -62,26 +62,26 @@ variable "akeyless_k8s_auth_namespace" {
   default     = "akeyless-auth"
 }
 
-resource "kubernetes_namespace" "akeyless_namespace" {
+resource "kubernetes_namespace_v1" "akeyless_namespace" {
   metadata {
     name = var.akeyless_k8s_auth_namespace
   }
 }
 
-resource "kubernetes_service_account" "gateway_service_account" {
+resource "kubernetes_service_account_v1" "gateway_service_account" {
   metadata {
     name      = var.k8s_auth_account_name
-    namespace = kubernetes_namespace.akeyless_namespace.metadata[0].name
+    namespace = kubernetes_namespace_v1.akeyless_namespace.metadata[0].name
   }
-  depends_on = [kubernetes_namespace.akeyless_namespace]
+  depends_on = [kubernetes_namespace_v1.akeyless_namespace]
 }
 
-resource "kubernetes_secret" "gateway_service_account_token" {
+resource "kubernetes_secret_v1" "gateway_service_account_token" {
   metadata {
     annotations = {
-      "kubernetes.io/service-account.name" = kubernetes_service_account.gateway_service_account.metadata.0.name
+      "kubernetes.io/service-account.name" = kubernetes_service_account_v1.gateway_service_account.metadata.0.name
     }
-    namespace     = kubernetes_namespace.akeyless_namespace.metadata[0].name
+    namespace     = kubernetes_namespace_v1.akeyless_namespace.metadata[0].name
     generate_name = format("%s-", var.k8s_auth_account_name)
   }
 
@@ -89,12 +89,12 @@ resource "kubernetes_secret" "gateway_service_account_token" {
   wait_for_service_account_token = true
 
   depends_on = [
-    kubernetes_namespace.akeyless_namespace,
-    kubernetes_service_account.gateway_service_account
+    kubernetes_namespace_v1.akeyless_namespace,
+    kubernetes_service_account_v1.gateway_service_account
   ]
 }
 
-resource "kubernetes_cluster_role_binding" "token_reviewer_binding" {
+resource "kubernetes_cluster_role_binding_v1" "token_reviewer_binding" {
   metadata {
     name = format("%s-binding", var.k8s_auth_account_name)
   }
@@ -105,16 +105,15 @@ resource "kubernetes_cluster_role_binding" "token_reviewer_binding" {
   }
   subject {
     kind      = "ServiceAccount"
-    name      = kubernetes_service_account.gateway_service_account.metadata.0.name
-    namespace = kubernetes_namespace.akeyless_namespace.metadata[0].name
+    name      = kubernetes_service_account_v1.gateway_service_account.metadata.0.name
+    namespace = kubernetes_namespace_v1.akeyless_namespace.metadata[0].name
   }
   depends_on = [
-    kubernetes_namespace.akeyless_namespace,
-    kubernetes_service_account.gateway_service_account
+    kubernetes_namespace_v1.akeyless_namespace,
+    kubernetes_service_account_v1.gateway_service_account
   ]
 }
 
-# Output for cluster information
 data "kubernetes_resource" "cluster_info" {
   api_version = "v1"
   kind        = "ConfigMap"
@@ -125,39 +124,28 @@ data "kubernetes_resource" "cluster_info" {
   }
 }
 
-output "cluster_ca_certificate" {
-  value = data.kubernetes_resource.cluster_info.object.data["ca.crt"]
-}
-
-output "bearer_token" {
-  value     = data.kubernetes_secret.token.data.token
-  sensitive = true
-}
-
-data "kubernetes_secret" "token" {
+data "kubernetes_secret_v1" "token" {
   metadata {
-    name      = kubernetes_secret.gateway_service_account_token.metadata.0.name
+    name      = kubernetes_secret_v1.gateway_service_account_token.metadata.0.name
     namespace = var.akeyless_k8s_auth_namespace
   }
-  depends_on = [kubernetes_secret.gateway_service_account_token]
+  depends_on = [kubernetes_secret_v1.gateway_service_account_token]
 }
 
-# Akeyless Auth Method
 resource "akeyless_auth_method_k8s" "cluster_auth" {
   name = var.k8s_cluster_name
 
   depends_on = [
-    kubernetes_secret.gateway_service_account_token,
-    kubernetes_cluster_role_binding.token_reviewer_binding
+    kubernetes_secret_v1.gateway_service_account_token,
+    kubernetes_cluster_role_binding_v1.token_reviewer_binding
   ]
 }
 
-# Akeyless Auth Method Configuration
 resource "akeyless_k8s_auth_config" "cluster_config" {
   name                      = var.k8s_cluster_name
   cluster_api_type          = "native_k8s"
   access_id                 = akeyless_auth_method_k8s.cluster_auth.access_id
-  token_reviewer_jwt        = data.kubernetes_secret.token.data["token"]
+  token_reviewer_jwt        = data.kubernetes_secret_v1.token.data["token"]
   disable_issuer_validation = true
   k8s_auth_type             = "token"
   k8s_ca_cert               = data.kubernetes_resource.cluster_info.object.data["ca.crt"]
@@ -167,7 +155,15 @@ resource "akeyless_k8s_auth_config" "cluster_config" {
   depends_on = [akeyless_auth_method_k8s.cluster_auth]
 }
 
-# Output of the Akeyless Auth Method Access ID and the Akeyless K8s Auth Config Name
+output "cluster_ca_certificate" {
+  value = data.kubernetes_resource.cluster_info.object.data["ca.crt"]
+}
+
+output "bearer_token" {
+  value     = data.kubernetes_secret_v1.token.data.token
+  sensitive = true
+}
+
 output "kubernetes_auth_method_id" {
   description = "The Akeyless Auth Method Access ID"
   value       = akeyless_auth_method_k8s.cluster_auth.access_id
